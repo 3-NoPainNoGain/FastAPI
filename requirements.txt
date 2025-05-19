@@ -3,5 +3,5 @@ uvicorn[standard]==0.34.0
 mediapipe==0.10.21
 opencv-python==4.11.0.86
 numpy==1.26.4
-torch==2.2.0+cpu
+torch==2.2.0
 python-multipart==0.0.20
