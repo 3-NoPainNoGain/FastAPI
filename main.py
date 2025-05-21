@@ -73,6 +73,7 @@ async def websocket_endpoint(websocket: WebSocket):
 
                 if len(sequence) == 30:
                     pred = predict_from_keypoints(np.array(sequence), model)
+                    print("예측 결과 :", pred)
                     await websocket.send_text(json.dumps({"result": pred}))
         except WebSocketDisconnect:
             print("WebSocket 연결 종료")
