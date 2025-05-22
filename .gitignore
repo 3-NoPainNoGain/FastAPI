@@ -1,6 +1,5 @@
 # Byte-compiled / optimized / DLL files
 __pycache__/
-ai_model/__pycache__/
 *.py[cod]
 *.pyo
 
