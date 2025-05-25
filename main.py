@@ -35,23 +35,20 @@ def decode_base64_image(base64_data: str):
     return cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
 
 def extract_keypoints(results):
-    # 상반신 pose index 7개: 0, 11, 12, 13, 14, 15, 16
-    pose_indices = [0, 11, 12, 13, 14, 15, 16]
     pose = np.array(
-        [[results.pose_landmarks.landmark[i].x,
-          results.pose_landmarks.landmark[i].y,
-          results.pose_landmarks.landmark[i].z,
-          results.pose_landmarks.landmark[i].visibility]
-         for i in pose_indices]
-    ).flatten() if results.pose_landmarks else np.zeros(7 * 4)
+        [[res.x, res.y, res.z, res.visibility] for res in results.pose_landmarks.landmark]
+    ).flatten() if results.pose_landmarks else np.zeros(33 * 4)
 
-    lh = np.array([[res.x, res.y, res.z] for res in results.left_hand_landmarks.landmark]).flatten() \
-        if results.left_hand_landmarks else np.zeros(21 * 3)
+    lh = np.array(
+        [[res.x, res.y, res.z] for res in results.left_hand_landmarks.landmark]
+    ).flatten() if results.left_hand_landmarks else np.zeros(21 * 3)
 
-    rh = np.array([[res.x, res.y, res.z] for res in results.right_hand_landmarks.landmark]).flatten() \
-        if results.right_hand_landmarks else np.zeros(21 * 3)
+    rh = np.array(
+        [[res.x, res.y, res.z] for res in results.right_hand_landmarks.landmark]
+    ).flatten() if results.right_hand_landmarks else np.zeros(21 * 3)
 
-    return np.concatenate([pose, lh, rh])
+    return np.concatenate([pose, lh, rh])  # shape = (258,)
+
 
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
