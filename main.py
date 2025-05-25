@@ -47,8 +47,7 @@ def extract_keypoints(results):
         [[res.x, res.y, res.z] for res in results.right_hand_landmarks.landmark]
     ).flatten() if results.right_hand_landmarks else np.zeros(21 * 3)
 
-    return np.concatenate([pose, lh, rh])  # shape = (258,)
-
+    return np.concatenate([pose, lh, rh]) 
 
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
