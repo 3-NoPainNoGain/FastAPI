@@ -1,0 +1,3 @@
+[submodule "FastAPI/ai_model"]
+	path = FastAPI/ai_model
+	url = https://github.com/3-NoPainNoGain/AI.git
