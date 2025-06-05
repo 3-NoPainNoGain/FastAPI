@@ -8,7 +8,7 @@ import mediapipe as mp
 
 # AI 모델 디렉토리 경로 추가
 sys.path.append(os.path.join(os.path.dirname(__file__), "ai_model"))
-from ai_model.predict import load_model, predict_from_keypoints
+from FastAPI.ai_model.predict import load_model, predict_from_keypoints
 
 app = FastAPI()
 
