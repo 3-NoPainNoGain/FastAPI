@@ -80,9 +80,82 @@ def has_jongseong(word: str) -> bool:
 def subject_particle(noun: str) -> str:
     return '이' if has_jongseong(noun) else '가'
 
+# ====== (규칙 기반) 한글 합성/분해 최소 유틸 ======
+JUNGSEONG = ['ㅏ','ㅐ','ㅑ','ㅒ','ㅓ','ㅔ','ㅕ','ㅖ','ㅗ','ㅘ','ㅙ','ㅚ','ㅛ','ㅜ','ㅝ','ㅞ','ㅟ','ㅠ','ㅡ','ㅢ','ㅣ']
+
+def _decompose(ch: str):
+    code = ord(ch)
+    if not (0xAC00 <= code <= 0xD7A3):
+        return None
+    s = code - 0xAC00
+    c = s // 588
+    v = (s % 588) // 28
+    f = s % 28
+    return c, v, f
+
+def _compose(c_idx: int, v_idx: int, f_idx: int = 0) -> str:
+    return chr(0xAC00 + c_idx*588 + v_idx*28 + f_idx)
+
+def _last_vowel(s: str) -> str:
+    if not s: return ''
+    parts = _decompose(s[-1])
+    if not parts: return ''
+    _, v_idx, _ = parts
+    return JUNGSEONG[v_idx]
+
+def _has_jong(s: str) -> bool:
+    parts = _decompose(s[-1]) if s else None
+    return bool(parts and parts[2] != 0)
+
+def _replace_last_vowel(s: str, new_vowel: str) -> str:
+    if not s: return s
+    parts = _decompose(s[-1])
+    if not parts: return s
+    c, _, f = parts
+    v_idx = JUNGSEONG.index(new_vowel)
+    return s[:-1] + _compose(c, v_idx, f)
+
+# ====== (규칙 기반) ~요 활용: 있다/없다/막히다(+아프다 대응) ======
+def conjugate_to_polite(verb: str) -> str:
+    """
+    사전 매핑 없이 규칙으로 처리:
+      - ㅣ + 어 → 여 (막히다→막혀요)
+      - ㅡ 불규칙: 마지막 모음이 ㅡ면 탈락 후 앞모음 기준 아/어 (아프다→아파요, 쓰다→써요)
+      - 기본: 마지막 모음이 ㅏ/ㅗ → 아요, 그 외 → 어요
+      - 안녕하세요/감사합니다 등 이미 요체/고정문구는 그대로 반환
+    """
+    verb = to_text(verb)
+    if not verb.endswith("다"):
+        return verb  # 이미 요체/고정 문구일 수 있음
+
+    stem = verb[:-1]  # '다' 제거
+
+    # (1) ㅡ 불규칙: 끝 모음이 ㅡ면 ㅡ를 '아/어'로 치환(앞 음절 모음 기준)
+    if _last_vowel(stem) == "ㅡ":
+        base = stem[:-1]  # 마지막 음절 제외
+        prev_v = _last_vowel(base)
+        chosen = "ㅏ" if prev_v in ["ㅏ", "ㅗ"] else "ㅓ"
+        new_stem = _replace_last_vowel(stem, chosen)
+        return new_stem + "요"
+
+    # (2) ㅣ + 어 → 여 (막히다/마시다 류, 받침 없을 때 자연스럽게 '여')
+    if not _has_jong(stem) and _last_vowel(stem) == "ㅣ":
+        return _replace_last_vowel(stem, "ㅕ") + "요"
+
+    # (3) 기본 규칙
+    if _last_vowel(stem) in ["ㅏ", "ㅗ"]:
+        # 받침 없고 마지막 모음이 ㅏ인 경우(가다 등)는 '가요'처럼 자연 축약
+        if not _has_jong(stem) and _last_vowel(stem) == "ㅏ":
+            return stem + "요"
+        return stem + "아요"
+    else:
+        return stem + "어요"
+
 def format_noun_verb(noun: str, verb: str) -> str:
-    if not noun or not verb: return ""
-    return f"{noun}{subject_particle(noun)} {verb}"
+    if not noun or not verb: 
+        return ""
+    polite_verb = conjugate_to_polite(verb)
+    return f"{noun}{subject_particle(noun)} {polite_verb}"
 
 # ====== 모델 ======
 model, classes = load_model()
