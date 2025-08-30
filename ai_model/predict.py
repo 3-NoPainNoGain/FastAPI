@@ -1,55 +1,65 @@
-import os
+# ai_model/preprocessing.py
+import base64
+import re
 import numpy as np
-import torch
-from .model import SignLanguageBiLSTM
+import cv2
+import mediapipe as mp
 
-# 사용할 디바이스 설정 (GPU가 있으면 GPU 사용, 없으면 CPU)
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+# (옵션) 모듈 전역에 홀리스틱 네임스페이스만 유지
+mp_holistic = mp.solutions.holistic
 
-# 현재 파일의 디렉토리 경로를 기준으로 모델과 클래스 경로 설정
-BASE_DIR = os.path.dirname(__file__)
-MODEL_PATH = os.path.join(BASE_DIR, "models", "model_bilstm_val_100_20250728.pth")
-CLASSES_PATH = os.path.join(BASE_DIR, "datasets", "classes.npy")
+# data URL 프리픽스 제거용 (예: "data:image/jpeg;base64,XXXX")
+_DATA_URL_RE = re.compile(r'^data:image/\w+;base64,', re.I)
 
-# 클래스 이름들을 numpy 배열 형태로 로드 (ex: ["안녕하세요", "열", "있다", ...])
-classes = np.load(CLASSES_PATH, allow_pickle=True)
+def _pad_base64(s: str) -> str:
+    """개행/공백 제거 + 누락 패딩 보정('=' 채움)"""
+    s = s.replace('\n', '').replace('\r', '').replace(' ', '')
+    missing = (-len(s)) % 4
+    if missing:
+        s += "=" * missing
+    return s
 
-def load_model():
+def decode_base64_image(base64_data: str, max_bytes: int = 2_000_000):
     """
-    학습된 BiLSTM 모델을 로드하고 evaluation 모드로 설정하여 반환한다.
-    모델은 클래스 개수에 맞춰 초기화되며, GPU 또는 CPU에 자동 할당된다.
+    안전한 base64 → OpenCV BGR 이미지
+      - data URL 프리픽스 제거
+      - 개행/공백 제거
+      - 패딩 보정
+      - 사이즈 제한 (기본 2MB)
+    실패 시 None 반환
     """
-    model = SignLanguageBiLSTM(num_classes=len(classes)).to(device)
-    model.load_state_dict(torch.load(MODEL_PATH, map_location=device))
-    model.eval()  # 평가 모드로 설정 (dropout, batchnorm 등이 inference로 작동)
-    return model, classes
+    if not base64_data:
+        return None
 
-def predict_from_keypoints(keypoints_30x258, model, classes):
+    s = _DATA_URL_RE.sub('', base64_data.strip())
+    s = _pad_base64(s)
+
+    try:
+        raw = base64.b64decode(s, validate=False)  # 깨진 패딩 허용
+    except Exception:
+        return None
+
+    if len(raw) > max_bytes:
+        return None
+
+    arr = np.frombuffer(raw, dtype=np.uint8)
+    img = cv2.imdecode(arr, cv2.IMREAD_COLOR)  # BGR
+    return img
+
+def extract_keypoints(results):
     """
-    30프레임 분량의 keypoint 데이터를 받아 예측된 단어(class label)를 반환한다.
-
-    Parameters:
-        keypoints_30x258: (30, 258) shape의 numpy 배열 또는 list. 
-                          각 프레임에서 추출된 keypoints가 시간 순서대로 쌓인 형태.
-        model: 로드된 BiLSTM 모델
-        classes: 단어 클래스 리스트 (numpy 배열)
-
-    Returns:
-        예측된 단어 클래스 (ex: "안녕하세요", "열", ...)
+    Pose(33*4) + LeftHand(21*3) + RightHand(21*3) = 258
     """
-    # 리스트로 들어온 경우 numpy 배열로 변환
-    if isinstance(keypoints_30x258, list):
-        keypoints_30x258 = np.array(keypoints_30x258)
+    pose = (np.array([[lm.x, lm.y, lm.z, lm.visibility]
+                      for lm in (results.pose_landmarks.landmark if results.pose_landmarks else [])])
+            if results.pose_landmarks else np.zeros((33, 4), dtype=float))
 
-    # 입력 형식이 정확히 (30, 258)인지 확인
-    if keypoints_30x258.shape != (30, 258):
-        raise ValueError(f"입력 shape 오류: 기대값은 (30, 258), 현재는 {keypoints_30x258.shape}")
+    lh = (np.array([[lm.x, lm.y, lm.z]
+                    for lm in (results.left_hand_landmarks.landmark if results.left_hand_landmarks else [])])
+          if results.left_hand_landmarks else np.zeros((21, 3), dtype=float))
 
-    # 모델 입력을 위한 텐서 변환 및 차원 추가 (batch dimension)
-    input_tensor = torch.tensor(keypoints_30x258, dtype=torch.float32).unsqueeze(0).to(device)
+    rh = (np.array([[lm.x, lm.y, lm.z]
+                    for lm in (results.right_hand_landmarks.landmark if results.right_hand_landmarks else [])])
+          if results.right_hand_landmarks else np.zeros((21, 3), dtype=float))
 
-    # 예측 수행 (gradient 계산 비활성화)
-    with torch.no_grad():
-        output = model(input_tensor)  # 출력 shape: (1, num_classes)
-        pred_idx = output.argmax(dim=1).item()  # 가장 확률 높은 클래스의 index 추출
-        return classes[pred_idx]  # 예측된 클래스 이름 반환
+    return np.concatenate([pose.flatten(), lh.flatten(), rh.flatten()]).astype(float)  # (258,)
