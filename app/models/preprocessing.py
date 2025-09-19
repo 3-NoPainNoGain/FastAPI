@@ -1,16 +1,16 @@
-import base64
+#import base64
 import numpy as np
-import cv2
-import mediapipe as mp
+#import cv2
+#import mediapipe as mp
 
 # Mediapipe Holistic 초기화
-mp_holistic = mp.solutions.holistic
+#mp_holistic = mp.solutions.holistic
 
 # 프론트(WebSocket)에서 받은 base64 문자열을 OpenCV 이미지로 변환
-def decode_base64_image(base64_data: str):
-    image_bytes = base64.b64decode(base64_data)
-    np_arr = np.frombuffer(image_bytes, np.uint8)
-    return cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
+#def decode_base64_image(base64_data: str):
+#    image_bytes = base64.b64decode(base64_data)
+#    np_arr = np.frombuffer(image_bytes, np.uint8)
+#    return cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
 
 # Mediapipe Holistic 결과에서 keypoints 추출 → 258차원 벡터 생성
 # Pose(33*4) + LeftHand(21*3) + RightHand(21*3) = 258
