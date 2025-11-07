@@ -2,12 +2,7 @@ name: FastAPI CI/CD
 
 on:
   push:
-    branches: ["develop"]
-    # 루트에 Dockerfile이라면 paths 필터는 굳이 안 씀(오탐 방지).
-    # 필요하면 특정 경로만으로 좁히세요.
-    # paths:
-    #   - ".github/workflows/fastapi-deploy.yml"
-    #   - "**/*"
+    branches: ["main"]
   workflow_dispatch:
 
 env:
